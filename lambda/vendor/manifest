@@ -2,9 +2,27 @@
 	"version": 0,
 	"dependencies": [
 		{
+			"importpath": "github.com/RobotsAndPencils/go-saml",
+			"repository": "https://github.com/RobotsAndPencils/go-saml",
+			"revision": "aa127de49a0111329d9dbd2e19ddf21da90eb931",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/constabulary/gb",
 			"repository": "https://github.com/constabulary/gb",
 			"revision": "10f5c6ce9c996b737f2eed7fd3f0ba2e7924494c",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/kardianos/osext",
+			"repository": "https://github.com/kardianos/osext",
+			"revision": "29ae4ffbc9a6fe9fb2bc5029050ce6996ea1d3bc",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/nu7hatch/gouuid",
+			"repository": "https://github.com/nu7hatch/gouuid",
+			"revision": "179d4d0c4d8d407a32af483c2354df1d2c91e6c3",
 			"branch": "master"
 		}
 	]
