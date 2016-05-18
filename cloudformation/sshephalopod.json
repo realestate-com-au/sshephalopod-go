@@ -1,0 +1,497 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "SSHephalopod is an SSH Certificate Authority",
+
+  "Parameters": {
+    "Bucket": {
+      "Description": "The S3 bucket where the Lambda code blob is stashed",
+      "Type": "String"
+    },
+    "CodeFile": {
+      "Description": "The name of the Lambda code blob in S3",
+      "Type": "String"
+    },
+    "IdpMetadataEndpoint": {
+      "Description": "The URL of the IDP endpoint to use to retrieve the metadata XML",
+      "Type": "String",
+      "AllowedPattern": "^https://.*",
+      "ConstraintDescription": "Must be a valid HTTPS URL"
+    },
+    "DNSDomain": {
+      "Description": "The DNS domain that will be hosting sshephalopod",
+      "Type": "String"
+    },
+    "CAKeyPairBucket": {
+      "Description": "The name of the S3 bucket that will store the CA keypair",
+      "Type": "String"
+    },
+    "CAKeyPairKeyname": {
+      "Description": "The name of the keypair in the S3 bucket",
+      "Type": "String"
+    }
+  },
+
+  "Resources": {
+    "ExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [ "sts:AssumeRole" ],
+              "Effect": "Allow",
+              "Principal": { "Service": [ "lambda.amazonaws.com" ] }
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "PermitLambda",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "PermitWriteConsoleLogs",
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:*"
+                  ],
+                  "Resource": "arn:aws:logs:*:*:*"
+                },
+                {
+                  "Sid": "PermitUseKeypairBucket",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:List*",
+                    "s3:Get*",
+                    "s3:PutObject"
+                  ],
+                  "Resource": [
+                    { "Fn::Join": [ "", [ "arn:aws:s3:::", { "Ref": "CAKeyPairBucket" } ] ] },
+                    { "Fn::Join": [ "", [ "arn:aws:s3:::", { "Ref": "CAKeyPairBucket" }, "/*" ] ] }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    "APIGatewayExecRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [ "sts:AssumeRole" ],
+              "Effect": "Allow",
+              "Principal": { "Service": [ "apigateway.amazonaws.com" ] }
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "PermitLambda",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "PermitInvokeLambda",
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction"
+                  ],
+                  "Resource": [
+                    { "Fn::GetAtt": [ "SigningPreAuth", "Arn" ] },
+                    { "Fn::GetAtt": [ "GenerateMetadata", "Arn" ] },
+                    { "Fn::GetAtt": [ "SigningRequestPassport", "Arn" ] }
+                  ]
+                },
+                {
+                  "Sid": "PermitLogging",
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:*"
+                  ],
+                  "Resource": "arn:aws:logs:*:*:*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    "SigningPreAuth": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": { "Ref": "Bucket" },
+          "S3Key": { "Ref": "CodeFile" }
+        },
+        "Description": "Run by the initial unauthenticated GET",
+        "Handler": "SigningPreAuth.handler",
+        "MemorySize": "128",
+        "Role": { "Fn::GetAtt": [ "ExecutionRole", "Arn" ] },
+        "Runtime": "nodejs",
+        "Timeout": "30"
+      }
+    },
+
+    "GenerateMetadata": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": { "Ref": "Bucket" },
+          "S3Key": { "Ref": "CodeFile" }
+        },
+        "Description": "Returns the metadata of this SP",
+        "Handler": "Metadata.handler",
+        "MemorySize": "128",
+        "Role": { "Fn::GetAtt": [ "ExecutionRole", "Arn" ] },
+        "Runtime": "nodejs",
+        "Timeout": "30"
+      }
+    },
+
+    "SigningRequestPassport": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": { "Ref": "Bucket" },
+          "S3Key": { "Ref": "CodeFile" }
+        },
+        "Description": "Run when a SAML Response is POSTed along with an SSH pubkey - passport-saml version",
+        "Handler": "SigningRequestPassport.handler",
+        "MemorySize": "128",
+        "Role": { "Fn::GetAtt": [ "ExecutionRole", "Arn" ] },
+        "Runtime": "nodejs",
+        "Timeout": "60"
+      }
+    },
+
+    "SSHephalopodKeyPair": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": { "Ref": "Bucket" },
+          "S3Key": { "Ref": "CodeFile" }
+        },
+        "Handler": "CreateCAKeypair.handler",
+        "MemorySize": "128",
+        "Role": { "Fn::GetAtt": [ "ExecutionRole", "Arn" ] },
+        "Runtime": "nodejs",
+        "Timeout": "30"
+      }
+    },
+
+    "CAKeyPair": {
+      "Type": "Custom::GeneratedCAKeyPair",
+      "Properties": {
+        "ServiceToken": { "Fn::GetAtt": [ "SSHephalopodKeyPair", "Arn" ] },
+        "Bucket": { "Ref": "CAKeyPairBucket" },
+        "Key": { "Ref": "CAKeyPairKeyname" },
+        "MeaninglessThings": "cheese"
+      }
+    },
+
+    "SSHephalopodTXT": {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "Comment": "DNS records for sshephalopod",
+        "HostedZoneName": {
+          "Fn::Join": [
+            "",
+            [ { "Ref": "DNSDomain" }, "." ]
+          ]
+        },
+        "Name": {
+          "Fn::Join": [
+            "",
+            [ "sshephalopod-ca-cert", ".", { "Ref": "DNSDomain" }, "." ]
+          ]
+        },
+        "Type": "TXT",
+        "TTL": "300",
+        "ResourceRecords": [
+          { "Fn::Join": [
+            "", [
+              "\"",
+              { "Fn::GetAtt": [ "CAKeyPair", "PublicKey" ] },
+              "\""
+            ]
+          ]}
+        ]
+      }
+    },
+
+    "SSHephalopodSRV": {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "Comment": "DNS records for sshephalopod",
+        "HostedZoneName": {
+          "Fn::Join": [
+            "",
+            [ { "Ref": "DNSDomain" }, "." ]
+          ]
+        },
+        "Name": {
+          "Fn::Join": [
+            "",
+            [ "_sshephalopod-ca._tcp.", { "Ref": "DNSDomain" }, "." ]
+          ]
+        },
+        "Type": "SRV",
+        "TTL": "300",
+        "ResourceRecords": [
+          { "Fn::Join": [
+            "", [
+              "0 0 443 ",
+              { "Ref": "SSHephalopodAPI" },
+              ".execute-api.",
+              { "Ref": "AWS::Region" },
+              ".amazonaws.com/prod"
+            ]
+          ]}
+        ]
+      }
+    },
+
+    "SSHephalopodAPI": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "SSHephalopod"
+      }
+    },
+
+    "SSHephalopodAPIDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": "SSHephalopodAPIMethodMetadata",
+      "Properties": {
+        "RestApiId": { "Ref": "SSHephalopodAPI" },
+        "StageName": "prod"
+      }
+    },
+
+    "SSHephalopodAPIResourceMetadata": {
+      "Type": "AWS::ApiGateway::Resource",
+      "DependsOn": "SSHephalopodAPI",
+      "Properties": {
+        "ParentId": { "Fn::GetAtt": [ "SSHephalopodAPI", "RootResourceId" ] },
+        "PathPart": "metadata",
+        "RestApiId": { "Ref": "SSHephalopodAPI" }
+      }
+    },
+
+    "SSHephalopodAPIResourceSigning": {
+      "Type": "AWS::ApiGateway::Resource",
+      "DependsOn": "SSHephalopodAPI",
+      "Properties": {
+        "ParentId": { "Fn::GetAtt": [ "SSHephalopodAPI", "RootResourceId" ] },
+        "PathPart": "signing",
+        "RestApiId": { "Ref": "SSHephalopodAPI" }
+      }
+    },
+
+    "SuccessfulResponseModel": {
+      "Type": "AWS::ApiGateway::Model",
+      "Properties": {
+        "ContentType": "application/xml",
+        "RestApiId": { "Ref": "SSHephalopodAPI" },
+        "Schema": "{\"type\":\"string\",\"title\":\"MetadataResponse\",\"definitions\":{}}"
+      }
+    },
+
+    "SigningPreAuthModel": {
+      "Type": "AWS::ApiGateway::Model",
+      "Properties": {
+        "ContentType": "application/json",
+        "RestApiId": { "Ref": "SSHephalopodAPI" },
+        "Schema": "{\"properties\":{\"SAMLResponse\":{\"type\":\"string\",\"description\":\"The SAML Assertion from the IdP, base64-encoded\"},\"SSHPublicKey\":{\"type\":\"string\",\"description\":\"The requesting user's SSH pubkey\"},\"Username\":{\"type\":\"string\",\"description\":\"The username that the signature will permit logins to on the destination (trusting) host\"},\"Hostname\":{\"type\":\"string\",\"description\":\"The destination hostname that the signature will be valid for (optional)\"}},\"definitions\":{}}"
+      }
+    },
+
+    "SignedResponseModel": {
+      "Type": "AWS::ApiGateway::Model",
+      "Properties": {
+        "ContentType": "application/json",
+        "RestApiId": { "Ref": "SSHephalopodAPI" },
+        "Schema": "{\"properties\":{\"Result\":{\"type\":\"boolean\",\"description\":\"Whether or not the signing request was successful.\",\"default\":false},\"Message\":{\"type\":\"string\",\"description\":\"Additional information about the signing request.\"},\"Expiry\":{\"type\":\"string\",\"description\":\"The ISO8601-formatted timestamp when the signature will expire\"},\"SignedKey\":{\"type\":\"string\",\"description\":\"An SSH public key signed by the private key of the sshephalopod CA\"}},\"definitions\":{}}"
+      }
+    },
+
+    "SSHephalopodAPIMethodMetadata": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": "SSHephalopodAPIResourceMetadata",
+      "Properties": {
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Credentials": { "Fn::GetAtt": [ "APIGatewayExecRole", "Arn" ] },
+          "IntegrationHttpMethod": "POST",
+          "IntegrationResponses": [
+            { "StatusCode": "200" }
+          ],
+          "Type": "AWS",
+          "RequestTemplates": {
+            "application/json": {
+              "Fn::Join": [
+                "",
+                [
+                  "{", "\"api-id\":\"", { "Ref": "SSHephalopodAPI" }, "\",",
+                    "\"stage\":\"", "prod", "\",",
+                    "\"region\":\"", { "Ref": "AWS::Region" }, "\",",
+                    "\"resource-path\":\"", "/metadata", "\"", "}"
+                ]
+              ]
+            }
+          },
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                { "Ref": "AWS::Region" },
+                ":lambda:path/2015-03-31/functions/",
+                { "Fn::GetAtt": [ "GenerateMetadata", "Arn" ] },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "MethodResponses": [
+          {
+            "StatusCode": "200",
+            "ResponseModels": { "application/xml": { "Ref": "SuccessfulResponseModel" } }
+          }
+        ],
+        "ResourceId": { "Ref": "SSHephalopodAPIResourceMetadata" },
+        "RestApiId": { "Ref": "SSHephalopodAPI" }
+      }
+    },
+
+    "SSHephalopodAPIMethodSigningPreAuth": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": "SSHephalopodAPIResourceSigning",
+      "Properties": {
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Credentials": { "Fn::GetAtt": [ "APIGatewayExecRole", "Arn" ] },
+          "IntegrationHttpMethod": "POST",
+          "IntegrationResponses": [
+            { "StatusCode": "200" }
+          ],
+          "Type": "AWS",
+          "RequestTemplates": {
+            "application/json": {
+              "Fn::Join": [
+                "",
+                [
+                  "{", "\"api-id\":\"", { "Ref": "SSHephalopodAPI" }, "\",",
+                    "\"stage\":\"", "prod", "\",",
+                    "\"IdpMetadataEndpoint\":\"", { "Ref": "IdpMetadataEndpoint" }, "\",",
+                    "\"region\":\"", { "Ref": "AWS::Region" }, "\",",
+                    "\"resource-path\":\"", "/signing", "\"", "}"
+                ]
+              ]
+            }
+          },
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                { "Ref": "AWS::Region" },
+                ":lambda:path/2015-03-31/functions/",
+                { "Fn::GetAtt": [ "SigningPreAuth", "Arn" ] },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "MethodResponses": [
+          {
+            "StatusCode": "200",
+            "ResponseModels": { "application/xml": { "Ref": "SigningPreAuthModel" } }
+          }
+        ],
+        "ResourceId": { "Ref": "SSHephalopodAPIResourceSigning" },
+        "RestApiId": { "Ref": "SSHephalopodAPI" }
+      }
+    },
+
+    "SSHephalopodAPIMethodSigningRequest": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": "SSHephalopodAPIResourceSigning",
+      "Properties": {
+        "HttpMethod": "POST",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Credentials": { "Fn::GetAtt": [ "APIGatewayExecRole", "Arn" ] },
+          "IntegrationHttpMethod": "POST",
+          "IntegrationResponses": [
+            { "StatusCode": "200" }
+          ],
+          "Type": "AWS",
+          "RequestTemplates": {
+            "application/x-www-form-encoded": {
+              "Fn::Join": [
+                "",
+                [
+                  "{", 
+                  "\"api-id\":\"", { "Ref": "SSHephalopodAPI" }, "\",",
+                  "\"stage\":\"", "prod", "\",",
+                  "\"IdpMetadataEndpoint\":\"", { "Ref": "IdpMetadataEndpoint" }, "\",",
+                  "\"region\":\"", { "Ref": "AWS::Region" }, "\",",
+                  "\"resource-path\":\"", "/signing", "\"", 
+                  "\"KeypairBucket\":\"", { "Ref": "CAKeyPairBucket" }, "\"", 
+                  "\"KeypairName\":\"", { "Ref": "CAKeyPairKeyname" }, "\"", 
+                  "\"body\":\"", "$input.json('$')", "\"", 
+                  "}"
+                ]
+              ]
+            }
+          },
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                { "Ref": "AWS::Region" },
+                ":lambda:path/2015-03-31/functions/",
+                { "Fn::GetAtt": [ "SigningRequestPassport", "Arn" ] },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "MethodResponses": [
+          {
+            "StatusCode": "200",
+            "ResponseModels": { "application/json": { "Ref": "SignedResponseModel" } }
+          }
+        ],
+        "ResourceId": { "Ref": "SSHephalopodAPIResourceSigning" },
+        "RestApiId": { "Ref": "SSHephalopodAPI" }
+      }
+    }
+
+  },
+
+  "Outputs": {
+    "CAPublicKey": { "Value": { "Fn::GetAtt": [ "CAKeyPair", "PublicKey" ] } },
+    "GenerateMetadata": { "Value": { "Fn::GetAtt": [ "GenerateMetadata", "Arn" ] } },
+    "SigningRequest": { "Value": { "Fn::GetAtt": [ "SigningRequestPassport", "Arn" ] } },
+    "SigningPreAuth": { "Value": { "Fn::GetAtt": [ "SigningPreAuth", "Arn" ] } },
+    "ExecutionRole": { "Value": { "Fn::GetAtt": [ "APIGatewayExecRole", "Arn" ] } },
+    "KeyPairBucket": { "Value": { "Ref": "CAKeyPairBucket" } },
+    "KeyPairName": { "Value": { "Ref": "CAKeyPairKeyname" } },
+    "IdpMetadataEndpoint": { "Value": { "Ref": "IdpMetadataEndpoint" } }
+  }
+}
