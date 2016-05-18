@@ -42,14 +42,17 @@ onlydeploy:
 	./deploy.sh $(CONFIG_BUCKET) $(ZIPFILE)-$(REV).zip \
 		$(IDP_METADATA) $(DOMAIN) $(KEYPAIR_BUCKET) $(KEYPAIR_NAME)
 
+gofmt: 
+	find src/ -type f -iname *.go | xargs gofmt -w -l
+
 bin/gb:
 	go build -o bin/gb github.com/constabulary/gb/cmd/gb
 
-./bin/server: src/ vendor
-	go build -o bin/server server
+./bin/hello: src/ vendor gofmt
+	go build -o bin/hello hello
 
-devel: ./bin/server
-	./bin/server
+devel: ./bin/hello
+	./bin/hello
 
 doc:
 	godoc -http :6060
