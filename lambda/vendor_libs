@@ -1,0 +1,11 @@
+#!/bin/bash
+
+LIBS=$( for file in $( find src -name \*.go ); do
+	go list -f '{{ .Imports }}' $file
+done | sed -e 's/\[//g' -e 's/\]//g' | xargs -n 1 echo | sort -u )
+
+PATH=$PATH:$(pwd)/bin
+
+for lib in $LIBS; do
+	bin/gb vendor fetch $lib
+done

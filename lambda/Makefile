@@ -2,7 +2,7 @@
 
 export GOPATH = $(CURDIR):$(CURDIR)/vendor
 
-.PHONY: devel deploy
+.PHONY: devel deploy vendor
 
 ZIPFILE=sshephalopod
 SOURCES=SigningPreAuth.js \
@@ -48,6 +48,11 @@ gofmt:
 bin/gb:
 	go build -o bin/gb github.com/constabulary/gb/cmd/gb
 
+bin/gb-vendor:
+	go build -o bin/gb-vendor github.com/constabulary/gb/cmd/gb-vendor
+
+vendor:
+	./vendor_libs
 
 devel: src/ vendor gofmt ./bin/cakeypair ./bin/spmetadata ./bin/auth ./bin/signing
 
