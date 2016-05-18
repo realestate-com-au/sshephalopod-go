@@ -1,3 +1,9 @@
+#!/usr/bin/env make -f
+
+export GOPATH = $(CURDIR):$(CURDIR)/vendor
+
+.PHONY: devel deploy
+
 ZIPFILE=sshephalopod
 SOURCES=SigningPreAuth.js \
 	Metadata.js \
@@ -18,8 +24,6 @@ IDP_METADATA?=https://rea.okta.com/app/exk13t140gl0MQ5sX1d8/sso/saml/metadata
 CONFIG=config.json
 KEYPAIR_NAME=$(DOMAIN)-sshephalopod-ca
 
-.PHONY: deploy
-
 all:
 	@echo "make upload: publish zipfile to S3 in DEV"
 	@echo "make deploy: update the stacks in DEV"
@@ -38,3 +42,14 @@ onlydeploy:
 	./deploy.sh $(CONFIG_BUCKET) $(ZIPFILE)-$(REV).zip \
 		$(IDP_METADATA) $(DOMAIN) $(KEYPAIR_BUCKET) $(KEYPAIR_NAME)
 
+bin/gb:
+	go build -o bin/gb github.com/constabulary/gb/cmd/gb
+
+./bin/server: src/ vendor
+	go build -o bin/server server
+
+devel: ./bin/server
+	./bin/server
+
+doc:
+	godoc -http :6060
