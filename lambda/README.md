@@ -1,3 +1,12 @@
+# Development
+
+To build the go binary
+
+```
+make devel
+```
+
+
 # XPATH notes
 
 Things to look for which might reveal the actual username:
