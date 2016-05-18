@@ -48,11 +48,20 @@ gofmt:
 bin/gb:
 	go build -o bin/gb github.com/constabulary/gb/cmd/gb
 
-./bin/hello: src/ vendor gofmt
-	go build -o bin/hello hello
 
-devel: ./bin/hello
-	./bin/hello
+devel: src/ vendor gofmt ./bin/cakeypair ./bin/spmetadata ./bin/auth ./bin/signing
+
+./bin/cakeypair:
+	go build -o bin/cakeypair cakeypair
+
+./bin/spmetadata:
+	go build -o bin/spmetadata spmetadata
+
+./bin/auth:
+	go build -o bin/auth auth
+
+./bin/signing:
+	go build -o bin/signing signing
 
 doc:
 	godoc -http :6060
