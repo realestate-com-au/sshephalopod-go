@@ -1,8 +1,15 @@
+#!/usr/bin/env make -f
+
+export GOPATH = $(CURDIR):$(CURDIR)/vendor
+
+.PHONY: devel
 
 CONFIG_BUCKET=sshephalopod-config-bucket
 KEYPAIR_BUCKET=sshephalopod-keypair-bucket
 DOMAIN=sshephalopod-service-domain.com
 IDP_METADATA=https://somewhere.okta.com/app/somejumbleofcharacters/sso/saml/metadata
+
+default: devel
 
 all:
 	@echo "use 'make build' to build sshephalopod components"
@@ -25,3 +32,15 @@ build-docker:
 
 deploy-docker:
 	docker run -it $(shell echo "$${!AWS_*}" | sed -e 's/AWS/-e AWS/g') sshephalopod-deploy
+
+bin/gb:
+	go build -o bin/gb github.com/constabulary/gb/cmd/gb
+
+./bin/server: src/ vendor
+	go build -o bin/server server
+
+devel: ./bin/server
+	./bin/server
+
+doc:
+	godoc -http :6060

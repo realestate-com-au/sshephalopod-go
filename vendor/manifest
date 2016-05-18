@@ -1,0 +1,11 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/constabulary/gb",
+			"repository": "https://github.com/constabulary/gb",
+			"revision": "10f5c6ce9c996b737f2eed7fd3f0ba2e7924494c",
+			"branch": "master"
+		}
+	]
+}
