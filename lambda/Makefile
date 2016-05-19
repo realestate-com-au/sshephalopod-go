@@ -2,8 +2,6 @@
 
 GOPATH=$(CURDIR):$(CURDIR)/vendor
 
-.PHONY: devel deploy vendor build
-
 ZIPFILE=sshephalopod
 BINARIES=bin/cakeypair bin/spmetadata bin/auth bin/signing
 ZIP_ARGS="-9rq"
@@ -18,7 +16,11 @@ CONFIG=config.json
 KEYPAIR_NAME=$(DOMAIN)-sshephalopod-ca
 
 BUILD=./bin/gb build
+TEST=./bin/gb test
+
 SRCS=$(wildcard src/**/*.go) $(wildcard vendor/src/**/*.go)
+
+.PHONY: devel deploy vendor build $(BINARIES)
 
 all:
 	@echo "make build: create the local binaries"
@@ -53,7 +55,7 @@ vendor:
 
 devel: src/ vendor gofmt ./bin/cakeypair ./bin/spmetadata ./bin/auth ./bin/signing
 
-build: $(BINARIES)
+build: $(BINARIES) test
 
 ./bin/cakeypair: $(CAKEYPAIR_SRCS)
 	$(BUILD) cmd/cakeypair
@@ -66,6 +68,9 @@ build: $(BINARIES)
 
 ./bin/signing: $(SRCS)
 	$(BUILD) cmd/signing
+
+test:
+	$(TEST)
 
 doc:
 	godoc -http :6060

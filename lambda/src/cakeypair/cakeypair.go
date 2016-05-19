@@ -1,55 +1,42 @@
 package cakeypair
 
 import (
-	"fmt"
-
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-
-	// 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 // Generate an SSH keypair for the CA, if the keypair doesn't already exist
 // (as determined by looking in the named S3 bucket for it)
+
+type Kv interface {
+	Get(string) string
+}
 
 type CAKeyPair struct {
 	PubKey  string
 	PrivKey string
 }
 
-type KeypairGetterInput struct {
-	Service *s3.S3
-	Bucket  string
-	Key     string
-}
-
-// if an object store contains a named key, return it
-func KeypairGetter(ref *KeypairGetterInput) (*CAKeyPair, error) {
-
-	getparams := s3.GetObjectInput{Bucket: &ref.Bucket, Key: &ref.Key}
-	getresp, err := ref.Service.GetObject(&getparams)
-
+func (c CAKeyPair) validate() error {
+	_, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.PubKey))
 	if err != nil {
-		fmt.Println(err)
-		return nil, err
+		return err
 	}
 
-	fmt.Println(getresp)
-
-	keyPair := CAKeyPair{PubKey: "something", PrivKey: "else"}
-	return &keyPair, nil
-}
-
-func Cakeypair() {
-	svc := s3.New(session.New())
-
-	params := KeypairGetterInput{Service: svc, Bucket: "sshephalopod-keys-tokyo", Key: "fridayclub.realestate.com.au-sshephalopod-ca"}
-	resp, err := KeypairGetter(&params)
-
+	_, err = ssh.ParsePrivateKey([]byte(c.PrivKey))
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 
-	fmt.Println(resp)
+	return nil
+}
+
+func Cakeypair(thinger Kv, keybase string) (string, string, error) {
+	pair := CAKeyPair{thinger.Get(keybase + ".pub"), thinger.Get(keybase)}
+	err := pair.validate()
+
+	if err != nil {
+		return "", "", err
+	}
+
+	return pair.PubKey, pair.PrivKey, nil
 }

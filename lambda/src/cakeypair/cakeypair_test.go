@@ -1,54 +1,56 @@
 package cakeypair
 
 import (
-	"io"
+	"io/ioutil"
+	"os"
 	"testing"
-
-	"crypto/rsa"
 )
 
 type testKvStore map[string]string
 
-func TestAddsKeyWhenAbsent(t *testing.T) {
-}
+func TestGetsValidKeys(t *testing.T) {
+	myKv := testKvStore{"foo": "bar", "foo.pub": "banana"}
 
-func (k testKvStore) GetObject(obj getObjectInput) (foo objectOutput, err error) {
-	foo.Body = bytes.NewBuffer([]byte{k[path]})
-	err = nil
-	return foo, err
-}
+	pub, priv, err := Cakeypair(myKv, "foo")
 
-func (k testKvStore) PutObject(path string, r io.Reader) error {
-	v, err := ioutil.ReadAll(r)
-	if err != nil {
-		return err
+	if err == nil {
+		t.Fatal("Expected an error where pubkey/privkey are invalid")
+		return
 	}
-	k[path] = string(v)
-	return nil
+
+	f, err := os.Open("testdata/testkey")
+	if err != nil {
+		t.Fatal("Cannot open testdata/testkey")
+	}
+	foo, _ := ioutil.ReadAll(f)
+	f.Close()
+	myKv["valid"] = string(foo)
+
+	f, err = os.Open("testdata/testkey.pub")
+	if err != nil {
+		t.Fatal("Cannot open testdata/testkey")
+	}
+	foo, _ = ioutil.ReadAll(f)
+	f.Close()
+	myKv["valid.pub"] = string(foo)
+
+	pub, priv, err = Cakeypair(myKv, "valid")
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if pub != myKv["valid.pub"] {
+		t.Errorf("Expected a valid public key")
+	}
+
+	if priv != myKv["valid"] {
+		t.Errorf("Expected a valid private key")
+	}
+
 }
 
-type getObjectInput struct {
-	Bucket string
-	Key    string
-}
-
-type putObjectInput struct {
-	Bucket string
-	Key    string
-	Body   string
-}
-
-type objectOutput struct {
-	Body string
-}
-
-// Implementation
-type kvStore interface {
-	GetObject(obj getObjectInput) (objectOutput, error)
-	PutObject(obj putObjectInput) (objectOutput, error)
-}
-
-func From(bucket kvStore, privatePath string, publicPath string) (rsa.PrivateKey, error) {
-	private, err := bucket.GetObject(privatePath)
-
+func (k testKvStore) Get(key string) string {
+	return k[key]
 }
