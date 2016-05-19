@@ -8,6 +8,15 @@ import (
 
 type testKvStore map[string]string
 
+func (k testKvStore) Get(key string) string {
+	return k[key]
+}
+
+func (k testKvStore) Put(key string, value string) error {
+	k[key] = value
+	return nil
+}
+
 func TestGetsValidKeys(t *testing.T) {
 	myKv := testKvStore{"foo": "bar", "foo.pub": "banana"}
 
@@ -48,9 +57,13 @@ func TestGetsValidKeys(t *testing.T) {
 	if priv != myKv["valid"] {
 		t.Errorf("Expected a valid private key")
 	}
-
 }
 
-func (k testKvStore) Get(key string) string {
-	return k[key]
+func TestGenerateKeys(t *testing.T) {
+	mine, err := NewCAKeyPair()
+
+	if err != nil {
+		t.Errorf("Cannot generate keys")
+		t.Error(err)
+	}
 }

@@ -16,7 +16,7 @@ CONFIG=config.json
 KEYPAIR_NAME=$(DOMAIN)-sshephalopod-ca
 
 BUILD=./bin/gb build
-TEST=./bin/gb test
+TEST=./bin/gb test -v
 
 SRCS=$(wildcard src/**/*.go) $(wildcard vendor/src/**/*.go)
 

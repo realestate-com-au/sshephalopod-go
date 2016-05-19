@@ -1,6 +1,7 @@
 package cakeypair
 
 import (
+	"bytes"
 	"io/ioutil"
 	"log"
 
@@ -25,4 +26,11 @@ func (s S3Kv) Get(path string) string {
 	s.log(err)
 	foo, _ := ioutil.ReadAll(getresp.Body)
 	return string(foo)
+}
+
+func (s S3Kv) Put(path string, body string) error {
+	putparams := s3.PutObjectInput{Bucket: &s.Bucket, Key: &path, Body: bytes.NewReader([]byte(body))}
+	_, err := s.Kv.PutObject(&putparams)
+	s.log(err)
+	return err
 }
