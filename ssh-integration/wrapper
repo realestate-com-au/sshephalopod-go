@@ -159,7 +159,7 @@ urldecode () {
     printf '%b' "${url_encoded//%/\\x}"
 }
 
-IDP_URL=$( echo "$AUTHN_REQUEST" | sed -e 's/.*Destination="\([^"]*\)" .*/\1/' )
+IDP_URL=$( echo "$AUTHN_REQUEST" | sed -e 's/.*Issuer[^>]*>\([^<]*\)<\/.*/\1/' )
 ASSERTION_CONSUMER=$( echo "$AUTHN_REQUEST" | sed -e 's/.*AssertionConsumerServiceURL="\([^ ]*\)" .*/\1/' )
 
 echo "Beginning the SAML dance ..."

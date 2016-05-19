@@ -41,7 +41,7 @@ onlydeploy:
 	./deploy.sh $(CONFIG_BUCKET) $(ZIPFILE)-$(REV).zip \
 		$(IDP_METADATA) $(DOMAIN) $(KEYPAIR_BUCKET) $(KEYPAIR_NAME)
 
-gofmt: 
+gofmt:
 	find src/ -type f -iname *.go | xargs gofmt -w -l
 
 bin/gb:
@@ -74,3 +74,6 @@ test:
 
 doc:
 	godoc -http :6060
+
+atom:
+	atom .
