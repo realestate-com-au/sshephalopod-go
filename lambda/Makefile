@@ -1,18 +1,11 @@
 #!/usr/bin/env make -f
 
-export GOPATH = $(CURDIR):$(CURDIR)/vendor
+GOPATH=$(CURDIR):$(CURDIR)/vendor
 
-.PHONY: devel deploy vendor
+.PHONY: devel deploy vendor build
 
 ZIPFILE=sshephalopod
-SOURCES=SigningPreAuth.js \
-	Metadata.js \
-	CreateCAKeypair.js \
-	SigningRequestPassport.js \
-	LookupMetadata.js \
-	saml_sp.key saml_sp.crt idp.crt \
-	bin \
-	keys
+BINARIES=bin/cakeypair bin/spmetadata bin/auth bin/signing
 ZIP_ARGS="-9rq"
 REV=$(shell git show-ref --head -s ^HEAD)
 
@@ -24,7 +17,11 @@ IDP_METADATA?=https://rea.okta.com/app/exk13t140gl0MQ5sX1d8/sso/saml/metadata
 CONFIG=config.json
 KEYPAIR_NAME=$(DOMAIN)-sshephalopod-ca
 
+BUILD=./bin/gb build
+SRCS=$(wildcard src/**/*.go) $(wildcard vendor/src/**/*.go)
+
 all:
+	@echo "make build: create the local binaries"
 	@echo "make upload: publish zipfile to S3 in DEV"
 	@echo "make deploy: update the stacks in DEV"
 
@@ -56,17 +53,19 @@ vendor:
 
 devel: src/ vendor gofmt ./bin/cakeypair ./bin/spmetadata ./bin/auth ./bin/signing
 
-./bin/cakeypair:
-	go build -o bin/cakeypair cakeypair
+build: $(BINARIES)
 
-./bin/spmetadata:
-	go build -o bin/spmetadata spmetadata
+./bin/cakeypair: $(CAKEYPAIR_SRCS)
+	$(BUILD) cmd/cakeypair
 
-./bin/auth:
-	go build -o bin/auth auth
+./bin/spmetadata: $(SRCS)
+	$(BUILD) cmd/spmetadata
 
-./bin/signing:
-	go build -o bin/signing signing
+./bin/auth: $(SRCS)
+	$(BUILD) cmd/auth
+
+./bin/signing: $(SRCS)
+	$(BUILD) cmd/signing
 
 doc:
 	godoc -http :6060
